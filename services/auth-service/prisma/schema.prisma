@@ -11,12 +11,119 @@ datasource db {
   provider = "postgresql"
 }
 
-// Add your database tables right here!
+// ========================================
+// USER
+// ========================================
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  password  String   // Added for authentication testing
-  createdAt DateTime @default(now())
+  id               Int        @id @default(autoincrement())
+
+  // ACCOUNT INFORMATION
+  email            String     @unique
+  name             String?
+
+  // LOCAL AUTHENTICATION
+  // Nullable because Google-only users may
+  // not have a local password.
+  passwordHash     String?
+
+  // AUTHORIZATION
+  role             Role       @default(USER)
+  status           UserStatus @default(ACTIVE)
+
+  // EMAIL VERIFICATION
+  emailVerified    Boolean    @default(false)
+
+  // TWO-FACTOR AUTHENTICATION
+  twoFactorEnabled Boolean    @default(false)
+
+  // TIMESTAMPS
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  // RELATIONSHIPS
+  oauthAccounts    OAuthAccount[]
+  sessions         Session[]
 }
 
+
+// ========================================
+// OAUTH ACCOUNTS
+// ========================================
+
+model OAuthAccount {
+  id                Int          @id @default(autoincrement())
+
+  userId            Int
+
+  // OAUTH PROVIDER
+  provider          OAuthProvider
+
+  // ID ASSIGNED BY THE PROVIDER
+  providerAccountId String
+
+  // TIMESTAMPS
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // RELATIONSHIP
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ONE PROVIDER ACCOUNT → ONE USER
+  @@unique([provider, providerAccountId])
+
+  // FASTER LOOKUP BY USER
+  @@index([userId])
+}
+
+
+// ========================================
+// USER SESSIONS
+// ========================================
+
+model Session {
+  id         String   @id @default(cuid())
+
+  userId     Int
+
+  // DEVICE INFORMATION
+  userAgent  String?
+  ipAddress  String?
+
+  // SESSION LIFETIME
+  expiresAt  DateTime
+
+  // SESSION STATE
+  // Set when the session is manually revoked.
+  revokedAt  DateTime?
+
+  // ACTIVITY
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  // RELATIONSHIP
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // FASTER LOOKUP OF USER SESSIONS
+  @@index([userId])
+}
+
+
+// ========================================
+// ENUMS
+// ========================================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  SUSPENDED
+}
+
+enum OAuthProvider {
+  GOOGLE
+}
